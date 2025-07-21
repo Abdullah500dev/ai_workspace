@@ -39,7 +39,10 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5000/api/documents');
+      const response = await fetch('http://localhost:8000/api/documents');
+      if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+      }
       const data = await response.json();
       
       // Apply client-side filtering
