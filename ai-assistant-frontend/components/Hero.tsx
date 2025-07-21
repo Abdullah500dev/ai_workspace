@@ -1,7 +1,7 @@
 export default function Hero() {
     return (
       <div className="text-center py-16">
-        <h1 className="text-4xl font-bold text-black">Your Personal <span className="text-blue-600">AI Assistant</span></h1>
+        <h1 className="text-4xl font-bold text-black dark:text-white">Your Personal <span className="text-blue-600">AI Assistant</span></h1>
         <p className="text-gray-600 mt-4">
           Upload your team's knowledge – documents, notes, emails – and query it like magic.
         </p>

@@ -1,6 +1,4 @@
-from sentence_transformers import SentenceTransformer
+def generate_embeddings(documents: list[str]) -> list[list[float]]:
+    from ollama_client import get_embedding
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
-def embed_text(text: str):
-    return model.encode(text).tolist()
+    return [get_embedding(text) for text in documents]

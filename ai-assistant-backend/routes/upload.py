@@ -1,13 +1,50 @@
-from fastapi import APIRouter, File, UploadFile
-from file_parser import parse_pdf
-from embedding import embed_text
+import traceback
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from utils import save_uploaded_file
+from file_parser import parse_file
+from embedding import generate_embeddings
 from chroma_client import add_to_chroma
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/")
+@router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    content = parse_pdf(file.file)
-    embedding = embed_text(content)
-    add_to_chroma(file.filename, content, {"source": file.filename}, embedding)
-    return {"message": "File embedded and stored"}
+    try:
+        # Step 1: Save file locally
+        file_path = await save_uploaded_file(file)
+
+        # Step 2: Parse file contents
+        documents = parse_file(file_path)
+
+        # Step 3: Generate embeddings
+        embeddings = generate_embeddings(documents)
+
+        # Step 4: Store in ChromaDB
+        # For each document, store with its corresponding embedding
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            doc_id = f"{file.filename}_{i}"
+            add_to_chroma(
+                doc_id=doc_id,
+                content=doc,
+                metadata={"source": file.filename, "doc_index": i},
+                embedding=embedding
+            )
+
+        return {"status": "success", "message": f"{file.filename} processed"}
+    
+    except HTTPException as he:
+        # Re-raise HTTP exceptions directly
+        logger.error(f"Upload error: {he.detail}")
+        raise
+        
+    except Exception as e:
+        error_detail = f"{str(e)}\n\n{traceback.format_exc()}"
+        logger.error(f"Upload error: {error_detail}")
+        raise HTTPException(
+            status_code=500, 
+            detail={"error": "Internal server error during file processing"}
+        )

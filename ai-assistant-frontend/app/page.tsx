@@ -26,9 +26,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-900 dark:to-dark-950">
+    <div className="min-h-screen dark:bg-gray-900">
       {/* Navigation */}
-      <nav className="bg-white dark:bg-dark-800 shadow-sm">
+      {/* <nav className="bg-white dark:bg-dark-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -41,10 +41,10 @@ export default function Home() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-md text-sm font-medium text-black transition-colors ${
                     activeTab === tab
                       ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-dark-700'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700'
+                      : 'text-black-700 dark:text-black-300 hover:bg-gray-100 dark:hover:bg-dark-700'
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -53,10 +53,10 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </nav>
+      </nav> */}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 !bg-red">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 bg-red">
           {/* Left sidebar */}
           <div className="lg:col-span-1 space-y-6">
             <ConnectApps />

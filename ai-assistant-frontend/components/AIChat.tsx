@@ -55,13 +55,13 @@ export default function AIChat() {
   }, [messages]);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto my-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 max-w-4xl mx-auto my-8">
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
         <FiMessageSquare className="mr-2 text-blue-600" />
         AI Assistant Chat
       </h2>
       
-      <div className="border rounded-lg h-96 overflow-y-auto p-4 mb-4 bg-gray-50">
+      <div className="border rounded-lg h-96 overflow-y-auto p-4 mb-4 bg-gray-50 dark:bg-gray-700">
         {messages.map((message) => (
           <div 
             key={message.id} 
@@ -99,7 +99,7 @@ export default function AIChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your message..."
-          className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
         />
         <button
           type="submit"

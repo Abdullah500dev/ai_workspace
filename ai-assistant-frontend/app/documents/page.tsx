@@ -1,0 +1,336 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Input } from '../../components/ui/input';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Search, FileText, Trash2, ExternalLink, Filter, X } from 'lucide-react';
+import { cn } from '../../components/ui/cn';
+import { DocumentViewer } from '../../components/DocumentViewer';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+
+type Document = {
+  id: string;
+  content: string;
+  metadata: {
+    source: string;
+    [key: string]: any;
+  };
+};
+
+export default function DocumentsPage() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
+  const [filters, setFilters] = useState({
+    fileType: 'all',
+    dateRange: 'all',
+  });
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Fetch all documents on initial load
+  // Fetch all documents on initial load and when filters change
+  useEffect(() => {
+    fetchDocuments();
+  }, [filters]);
+
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('http://localhost:5000/api/documents');
+      const data = await response.json();
+      
+      // Apply client-side filtering
+      let filteredDocs = data.documents || [];
+      
+      if (filters.fileType !== 'all') {
+        filteredDocs = filteredDocs.filter((doc: Document) => {
+          const ext = doc.metadata?.source?.split('.').pop()?.toLowerCase();
+          return ext === filters.fileType;
+        });
+      }
+      
+      // Note: Date filtering would require the backend to include upload dates
+      // This is a placeholder for future implementation
+      
+      setDocuments(filteredDocs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      fetchDocuments();
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const response = await fetch(
+        `http://localhost:5000/api/search?query=${encodeURIComponent(searchQuery)}&top_k=10`
+      );
+      const data = await response.json();
+      setDocuments(
+        data.results.map((result: any) => ({
+          id: result.metadata.source + '_' + (result.metadata.doc_index || '0'),
+          content: result.content,
+          metadata: result.metadata,
+        }))
+      );
+    } catch (error) {
+      console.error('Error searching documents:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/documents/${id}`, { 
+        method: 'DELETE' 
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete document');
+      }
+      
+      // Remove the deleted document from the UI
+      setDocuments(documents.filter(doc => doc.id !== id));
+      
+      // Close the viewer if the deleted document is currently being viewed
+      if (viewingDoc?.id === id) {
+        setViewingDoc(null);
+      }
+      
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert(`Error deleting document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  return (
+    <div className={cn("container mx-auto p-6 space-y-6")}>
+      <DocumentViewer 
+        document={viewingDoc} 
+        isOpen={!!viewingDoc} 
+        onClose={() => setViewingDoc(null)} 
+      />
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Documents</h1>
+          <p className="text-muted-foreground">
+            {isSearching ? 'Searching...' : `Showing ${documents.length} document${documents.length !== 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <Button asChild>
+          <a href="/upload">
+            <FileText className="mr-2 h-4 w-4" />
+            Upload New
+          </a>
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div className="flex gap-2">
+          <form onSubmit={handleSearch} className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search documents..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </form>
+          
+          <Popover open={showFilters} onOpenChange={setShowFilters}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" type="button" className="gap-2">
+                <Filter className="h-4 w-4" />
+                Filters
+                {(filters.fileType !== 'all' || filters.dateRange !== 'all') && (
+                  <span className="ml-1 h-2 w-2 rounded-full bg-primary"></span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-4" align="end">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium mb-2">File Type</h4>
+                  <div className="space-y-2">
+                    {['all', 'pdf', 'txt', 'docx', 'md'].map((type) => (
+                      <label key={type} className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          className="h-4 w-4 text-primary"
+                          checked={filters.fileType === type}
+                          onChange={() => {
+                            setFilters({ ...filters, fileType: type });
+                            setShowFilters(false);
+                          }}
+                        />
+                        <span className="text-sm capitalize">
+                          {type === 'all' ? 'All Types' : type}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Upload Date</h4>
+                  <div className="space-y-2">
+                    {[
+                      { value: 'all', label: 'Any Time' },
+                      { value: 'today', label: 'Today' },
+                      { value: 'week', label: 'This Week' },
+                      { value: 'month', label: 'This Month' },
+                    ].map(({ value, label }) => (
+                      <label key={value} className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          className="h-4 w-4 text-primary"
+                          checked={filters.dateRange === value}
+                          onChange={() => {
+                            setFilters({ ...filters, dateRange: value });
+                            setShowFilters(false);
+                          }}
+                        />
+                        <span className="text-sm">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                
+                {(filters.fileType !== 'all' || filters.dateRange !== 'all') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-2 text-xs"
+                    onClick={() => {
+                      setFilters({ fileType: 'all', dateRange: 'all' });
+                      setShowFilters(false);
+                    }}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear all filters
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <Button 
+            type="submit" 
+            onClick={handleSearch}
+            disabled={isSearching || isLoading}
+            className="px-4"
+          >
+            <Search className="h-4 w-4 mr-2" />
+            Search
+          </Button>
+        </div>
+        
+        {(filters.fileType !== 'all' || filters.dateRange !== 'all') && (
+          <div className="flex flex-wrap gap-2">
+            {filters.fileType !== 'all' && (
+              <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                {filters.fileType.toUpperCase()}
+                <button 
+                  onClick={() => setFilters({ ...filters, fileType: 'all' })}
+                  className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-primary/20"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            {filters.dateRange !== 'all' && (
+              <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary/50 text-secondary-foreground">
+                {filters.dateRange === 'today' ? 'Today' : 
+                 filters.dateRange === 'week' ? 'This Week' : 'This Month'}
+                <button 
+                  onClick={() => setFilters({ ...filters, dateRange: 'all' })}
+                  className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-secondary/50"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-2 text-lg font-medium">No documents found</h3>
+          <p className="mt-1 text-muted-foreground">
+            {searchQuery ? 'Try a different search term' : 'Upload your first document to get started'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {documents.map((doc) => (
+            <Card key={doc.id} className={cn("hover:shadow-md transition-shadow")}>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg font-medium line-clamp-1">
+                      {doc.metadata?.source || 'Untitled Document'}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {doc.id.split('_').pop() === '0' ? '' : `Part ${Number(doc.id.split('_').pop()) + 1}`}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(doc.id);
+                    }}
+                    title="Delete document"
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground line-clamp-3">
+                  {doc.content}
+                </p>
+                <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
+                  <span>
+                    {Math.ceil(doc.content.length / 5)} words • {doc.content.length} chars
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2"
+                    onClick={() => setViewingDoc(doc)}
+                  >
+                    View <ExternalLink className="ml-1 h-3 w-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
