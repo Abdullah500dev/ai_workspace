@@ -28,11 +28,11 @@ export default function Home() {
   return (
     <div className="min-h-screen dark:bg-gray-900">
       {/* Navigation */}
-      <nav className="bg-white dark:bg-dark-800 shadow-sm">
+      {/* <nav className="bg-white dark:bg-dark-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <span className="text-xl font-bold bg-gradient-to-r from-primary-600 to-secondary-500 bg-clip-text text-transparent">
+              <span className="text-xl text-black font-bold bg-gradient-to-r from-primary-600 to-secondary-500 bg-clip-text text-transparent">
                 AI Assistant
               </span>
             </div>
@@ -53,7 +53,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </nav>
+      </nav> */}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 !bg-red">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 bg-red">

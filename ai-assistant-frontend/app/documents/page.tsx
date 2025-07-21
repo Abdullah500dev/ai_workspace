@@ -97,7 +97,7 @@ export default function DocumentsPage() {
     if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/documents/${id}`, { 
+      const response = await fetch(`http://localhost:8000/api/documents/${id}`, { 
         method: 'DELETE' 
       });
       

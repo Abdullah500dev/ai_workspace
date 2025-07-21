@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
-from chroma_client import query_chroma
+from typing import List, Dict, Any, Optional
+from chroma_client import query_chroma, search_similar_documents
 from embedding import generate_embeddings
+from ollama_client import get_embedding
+import ollama  # Using the correct Ollama client import
+
 
 router = APIRouter()
 
@@ -60,3 +63,57 @@ async def list_documents(limit: int = 10, offset: int = 0):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search-similar")
+async def search_similar(query: str, top_k: int = 3):
+    try:
+        # Get embedding for the query
+        embedding = get_embedding(query)
+
+        # Query ChromaDB
+        results = query_chroma(query_embedding=embedding, top_k=top_k)
+
+        if not results or 'documents' not in results or not results['documents']:
+            return {"status": "success", "query": query, "results": [], "ollama_answer": "No relevant information found."}
+
+        # Format the results
+        formatted_results = []
+        documents = []
+        for i in range(len(results['documents'][0])):
+            doc = results['documents'][0][i]
+            documents.append(doc)
+            meta = results['metadatas'][0][i] if results.get('metadatas') and results['metadatas'][0] else {}
+            score = results['distances'][0][i] if results.get('distances') and results['distances'][0] else None
+
+            formatted_results.append({
+                "content": doc,
+                "metadata": meta,
+                "score": score
+            })
+
+        # Prepare context for Ollama
+        context = "\n\n".join(documents)
+        prompt = f"""You are an assistant that extracts specific answers based on files and documents.:
+
+        \"\"\"
+        {context}
+        \"\"\"
+        
+Answer this question briefly and clearly: "{query}"
+"""
+
+        # Send to Ollama (llama3 model)
+        response = ollama.chat(model="llama3", messages=[
+            {"role": "system", "content": "You are an assistant that extracts specific answers based on files and documents."},
+            {"role": "user", "content": prompt}
+        ])
+
+        return {
+            "status": "success",
+            # "query": query,
+            # "results": formatted_results,
+            "ollama_answer": response['message']['content']
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in similarity search: {str(e)}")
