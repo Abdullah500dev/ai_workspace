@@ -68,3 +68,6 @@ token.pickle
 
 # credentials.json
 credentials.json
+
+# uploaded_docs directory
+uploaded_docs/

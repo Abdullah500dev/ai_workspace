@@ -12,6 +12,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 type Document = {
   id: string;
   content: string;
+  name: string;
+  size_bytes: number;
+  last_modified: string;
+  type: string;
   metadata: {
     source: string;
     [key: string]: any;
@@ -44,20 +48,20 @@ export default function DocumentsPage() {
         throw new Error('Failed to fetch documents');
       }
       const data = await response.json();
-      
+
       // Apply client-side filtering
       let filteredDocs = data.documents || [];
-      
+
       if (filters.fileType !== 'all') {
         filteredDocs = filteredDocs.filter((doc: Document) => {
           const ext = doc.metadata?.source?.split('.').pop()?.toLowerCase();
           return ext === filters.fileType;
         });
       }
-      
+
       // Note: Date filtering would require the backend to include upload dates
       // This is a placeholder for future implementation
-      
+
       setDocuments(filteredDocs);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -95,25 +99,25 @@ export default function DocumentsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) return;
-    
+
     try {
-      const response = await fetch(`http://localhost:8000/api/documents/${id}`, { 
-        method: 'DELETE' 
+      const response = await fetch(`http://localhost:8000/api/documents/${id}`, {
+        method: 'DELETE'
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || 'Failed to delete document');
       }
-      
+
       // Remove the deleted document from the UI
       setDocuments(documents.filter(doc => doc.id !== id));
-      
+
       // Close the viewer if the deleted document is currently being viewed
       if (viewingDoc?.id === id) {
         setViewingDoc(null);
       }
-      
+
     } catch (error) {
       console.error('Error deleting document:', error);
       alert(`Error deleting document: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -122,10 +126,10 @@ export default function DocumentsPage() {
 
   return (
     <div className={cn("container mx-auto p-6 space-y-6")}>
-      <DocumentViewer 
-        document={viewingDoc} 
-        isOpen={!!viewingDoc} 
-        onClose={() => setViewingDoc(null)} 
+      <DocumentViewer
+        document={viewingDoc}
+        isOpen={!!viewingDoc}
+        onClose={() => setViewingDoc(null)}
       />
       <div className="flex justify-between items-center">
         <div>
@@ -154,7 +158,7 @@ export default function DocumentsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </form>
-          
+
           <Popover open={showFilters} onOpenChange={setShowFilters}>
             <PopoverTrigger asChild>
               <Button variant="outline" type="button" className="gap-2">
@@ -188,7 +192,7 @@ export default function DocumentsPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="text-sm font-medium mb-2">Upload Date</h4>
                   <div className="space-y-2">
@@ -213,7 +217,7 @@ export default function DocumentsPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 {(filters.fileType !== 'all' || filters.dateRange !== 'all') && (
                   <Button
                     variant="ghost"
@@ -231,9 +235,9 @@ export default function DocumentsPage() {
               </div>
             </PopoverContent>
           </Popover>
-          
-          <Button 
-            type="submit" 
+
+          <Button
+            type="submit"
             onClick={handleSearch}
             disabled={isSearching || isLoading}
             className="px-4"
@@ -242,13 +246,13 @@ export default function DocumentsPage() {
             Search
           </Button>
         </div>
-        
+
         {(filters.fileType !== 'all' || filters.dateRange !== 'all') && (
           <div className="flex flex-wrap gap-2">
             {filters.fileType !== 'all' && (
               <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                 {filters.fileType.toUpperCase()}
-                <button 
+                <button
                   onClick={() => setFilters({ ...filters, fileType: 'all' })}
                   className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-primary/20"
                 >
@@ -258,9 +262,9 @@ export default function DocumentsPage() {
             )}
             {filters.dateRange !== 'all' && (
               <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary/50 text-secondary-foreground">
-                {filters.dateRange === 'today' ? 'Today' : 
-                 filters.dateRange === 'week' ? 'This Week' : 'This Month'}
-                <button 
+                {filters.dateRange === 'today' ? 'Today' :
+                  filters.dateRange === 'week' ? 'This Week' : 'This Month'}
+                <button
                   onClick={() => setFilters({ ...filters, dateRange: 'all' })}
                   className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-secondary/50"
                 >
@@ -292,13 +296,20 @@ export default function DocumentsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg font-medium line-clamp-1">
-                      {doc.metadata?.source || 'Untitled Document'}
+                      {doc.name || 'Untitled Document'}
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {doc.id.split('_').pop() === '0' ? '' : `Part ${Number(doc.id.split('_').pop()) + 1}`}
+                      {(() => {
+                        if (!doc.id || typeof doc.id !== 'string') return '';
+                        const parts = doc.id.split('_');
+                        const last = parts[parts.length - 1];
+                        const isPart = parts.length > 1 && !isNaN(Number(last)) && last !== '0';
+                        return isPart ? `Part ${Number(last) + 1}` : '';
+                      })()}
                     </CardDescription>
+
                   </div>
-                  <Button
+                  {/* <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 hover:bg-destructive/10"
@@ -309,7 +320,7 @@ export default function DocumentsPage() {
                     title="Delete document"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  </Button> */}
                 </div>
               </CardHeader>
               <CardContent>
@@ -318,11 +329,14 @@ export default function DocumentsPage() {
                 </p>
                 <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
                   <span>
-                    {Math.ceil(doc.content.length / 5)} words • {doc.content.length} chars
+                    {doc.content
+                      ? `${Math.ceil(doc.content.length / 5)} words • ${doc.content.length} chars`
+                      : 'No content'}
                   </span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-8 px-2"
                     onClick={() => setViewingDoc(doc)}
                   >

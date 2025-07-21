@@ -4,7 +4,8 @@ from chroma_client import query_chroma, search_similar_documents
 from embedding import generate_embeddings
 from ollama_client import get_embedding
 import ollama  # Using the correct Ollama client import
-
+from uuid import uuid4
+from PyPDF2 import PdfReader
 
 router = APIRouter()
 
@@ -35,34 +36,70 @@ async def search_documents(query: str, top_k: int = 5):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+import os
+from pathlib import Path
+from fastapi import HTTPException
+from datetime import datetime
+
+UPLOAD_DIR = "uploaded_docs"
 @router.get("/documents")
 async def list_documents(limit: int = 10, offset: int = 0):
     """
-    List all stored documents with pagination
+    List documents in the upload directory with content extraction.
     """
     try:
-        from chroma_client import collection
-        
-        # Get all documents with pagination
-        results = collection.get(
-            limit=limit,
-            offset=offset,
-            include=["documents", "metadatas"]
-        )
-        
+        upload_path = Path(UPLOAD_DIR)
+        if not upload_path.exists():
+            return {
+                "total": 0,
+                "documents": [],
+                "limit": limit,
+                "offset": offset
+            }
+
+        all_files = []
+        for index, file_path in enumerate(sorted(upload_path.glob('*'))):
+            if file_path.is_file():
+                stat = file_path.stat()
+                file_type = file_path.suffix.lower().lstrip('.')
+
+                # Default content
+                content = "No preview available."
+
+                try:
+                    if file_type == "pdf":
+                        reader = PdfReader(str(file_path))
+                        text = ""
+                        for page in reader.pages[:2]:  # Limit to first 2 pages
+                            text += page.extract_text() or ""
+                        content = text.strip() if text.strip() else "No content extracted from PDF."
+                    elif file_type == "txt":
+                        content = file_path.read_text(encoding="utf-8")[:1000]  # limit to 1000 chars
+                except Exception as e:
+                    content = f"Could not extract content: {str(e)}"
+
+                all_files.append({
+                    "id": str(uuid4()),  # Unique UUID
+                    "name": file_path.name,
+                    "path": str(file_path),
+                    "size_bytes": stat.st_size,
+                    "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "type": file_type,
+                    "content": content
+                })
+
+        total = len(all_files)
+        paginated_files = all_files[offset:offset + limit]
+
         return {
-            "total": len(results['ids']) if results and 'ids' in results else 0,
-            "documents": [
-                {"id": doc_id, "content": doc, "metadata": meta}
-                for doc_id, doc, meta in zip(
-                    results.get('ids', []),
-                    results.get('documents', []),
-                    results.get('metadatas', [])
-                )
-            ]
+            "total": total,
+            "documents": paginated_files,
+            "limit": limit,
+            "offset": offset
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @router.get("/search-similar")
 async def search_similar(query: str, top_k: int = 3):

@@ -5,11 +5,31 @@ from file_parser import parse_file
 from embedding import generate_embeddings
 from chroma_client import add_to_chroma
 import logging
+import os
+from uuid import uuid4
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+UPLOAD_DIR = "uploaded_docs"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+def sanitize_filename(filename: str) -> str:
+    return Path(filename).name  # Prevent directory traversal
+
+async def save_uploaded_file(file: UploadFile) -> str:
+    filename = sanitize_filename(file.filename)
+    file_path = os.path.join(UPLOAD_DIR, filename)
+
+    # Save file
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    return file_path
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):

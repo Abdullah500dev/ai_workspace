@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Dict, List
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,9 +13,21 @@ from google_docs_utils import process_google_doc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
+UPLOAD_DIR = "uploaded_docs"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 class GoogleDocsRequest(BaseModel):
     url: str
+
+
+def save_google_doc(title: str, content: str) -> str:
+    safe_title = Path(title).stem.replace(' ', '_')  # Remove risky characters
+    filename = f"{safe_title}.txt"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    return filepath
 
 @router.post("/api/google-docs/import")
 async def import_google_doc(request: GoogleDocsRequest):
@@ -24,12 +37,14 @@ async def import_google_doc(request: GoogleDocsRequest):
     try:
         # Process the Google Doc
         doc_data = process_google_doc(request.url)
-        
-        # Generate embeddings for the document content
-        # Split the content into chunks if needed (you might want to implement chunking logic here)
-        content_chunks = [doc_data['content']]  # Simple approach - consider implementing chunking
+
+        # ✅ Save content to disk
+        saved_path = save_google_doc(doc_data['title'], doc_data['content'])
+
+        # Prepare content for embedding
+        content_chunks = [doc_data['content']]  # For now, single chunk
         embeddings = generate_embeddings(content_chunks)
-        
+
         # Store in ChromaDB
         for i, (chunk, embedding) in enumerate(zip(content_chunks, embeddings)):
             doc_id = f"google_doc_{doc_data['title'].replace(' ', '_')}_{i}"
@@ -40,17 +55,19 @@ async def import_google_doc(request: GoogleDocsRequest):
                     "source": "google_docs",
                     "title": doc_data['title'],
                     "url": request.url,
-                    "chunk_index": i
+                    "chunk_index": i,
+                    "file_path": saved_path,  # Optional: link to saved file
                 },
                 embedding=embedding
             )
-        
+
         return {
             "status": "success",
             "title": doc_data['title'],
-            "chunks_imported": len(content_chunks)
+            "chunks_imported": len(content_chunks),
+            "saved_path": saved_path
         }
-        
+
     except Exception as e:
         logger.error(f"Error importing Google Doc: {str(e)}")
         raise HTTPException(
