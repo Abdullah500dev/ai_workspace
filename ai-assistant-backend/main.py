@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes.upload import router as upload_router
 from routes.query import router as query_router
 from routes.delete import router as delete_router
+from routes import google_docs
 
 app = FastAPI()
 
@@ -19,3 +20,4 @@ app.add_middleware(
 app.include_router(upload_router, prefix="")  # Handles /upload
 app.include_router(query_router, prefix="/api")  # Handles /api/search and /api/documents
 app.include_router(delete_router, prefix="/api")  # Handles /api/documents/{document_id}
+app.include_router(google_docs.router, prefix="")  # Handles /api/google-docs/import and /api/google-docs/list
