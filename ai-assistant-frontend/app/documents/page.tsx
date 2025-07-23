@@ -10,19 +10,14 @@ import { cn } from '../../components/ui/cn';
 import { DocumentViewer } from '../../components/DocumentViewer';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { logActivity } from "../../utils/logActivity";
+import { fetchDocuments, searchDocuments, Document } from '../../services/documentService';
 
-type Document = {
-  id: string;
-  content: string;
-  name: string;
-  size_bytes: number;
-  last_modified: string;
-  type: string;
-  metadata: {
-    source: string;
-    [key: string]: any;
-  };
-};
+// Extend the Window interface to include our custom property
+declare global {
+  interface Window {
+    highlightTimeout: number | undefined;
+  }
+}
 
 type DocumentFilters = {
   fileType: string;
@@ -32,6 +27,7 @@ type DocumentFilters = {
 };
 
 export default function DocumentsPage() {
+  // State management
   const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,34 +44,133 @@ export default function DocumentsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const highlightedDocRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const highlightId = searchParams.get('highlight');
-    if (highlightId) {
-      setHighlightedDocId(highlightId);
+  // Scroll to a specific document by ID with visual highlight
+  const scrollToDocument = (docId: string) => {
+    // Clear any existing timeouts to prevent multiple highlights
+    const existingTimeout = window.highlightTimeout;
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
     }
-  }, [searchParams]);
 
+    setTimeout(() => {
+      const element = document.querySelector(`[data-doc-id="${docId}"]`);
+      if (element) {
+        console.log(`Scrolling to document: ${docId}`);
+        
+        // Find the document name element within the card
+        const docNameElement = element.querySelector('.document-name');
+        
+        // Scroll to the element
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        
+        // Add highlight classes to the card
+        element.classList.add('ring-4', 'ring-blue-500', 'ring-offset-2', 'rounded-lg', 'bg-gray-800', 'transition-all', 'duration-300');
+        
+        // Add highlight to the document name if found
+        if (docNameElement) {
+          docNameElement.classList.add('font-bold', 'text-blue-700', 'scale-105', 'transition-all', 'duration-300');
+        }
+        
+        // Remove the highlight after 2 seconds and clear the highlightedDocId
+        window.highlightTimeout = window.setTimeout(() => {
+          element.classList.remove('ring-4', 'ring-blue-500', 'ring-offset-2', 'bg-gray-800');
+          if (docNameElement) {
+            docNameElement.classList.remove('font-bold', 'text-blue-700', 'scale-105');
+          }
+          // Clear the highlighted ID
+          setHighlightedDocId(null);
+        }, 2000);
+      } else {
+        console.warn(`Could not find DOM element for document: ${docId}`);
+      }
+    }, 300); // Small delay to ensure the document is rendered
+  };
+  
+  // Clean up any pending timeouts when component unmounts
   useEffect(() => {
-    if (highlightedDocId && highlightedDocRef.current) {
-      highlightedDocRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
+    return () => {
+      if (window.highlightTimeout) {
+        clearTimeout(window.highlightTimeout);
+      }
+    };
+  }, []);
+
+  // Handle highlighting after documents are loaded
+  useEffect(() => {
+    const highlightName = searchParams.get('highlight');
+    
+    if (highlightName && documents.length > 0) {
+      console.log('=== DOCUMENT HIGHLIGHT DEBUG ===');
+      console.log('Looking for document with name:', highlightName);
       
-      const timer = setTimeout(() => {
-        setHighlightedDocId(null);
-        const url = new URL(window.location.href);
-        url.searchParams.delete('highlight');
-        window.history.replaceState({}, '', url.toString());
-      }, 3000);
+      // Log all available documents with their names and IDs
+      console.log('Available documents (first 10):', documents.slice(0, 10).map(d => ({
+        id: d.id,
+        name: d.name,
+        type: d.type,
+        path: d.path,
+        isNameMatch: d.name?.toLowerCase().includes(highlightName.toLowerCase())
+      })));
+
+      // 1. First try exact name match (case insensitive)
+      const exactNameMatch = documents.find(doc => 
+        doc.name?.toLowerCase() === highlightName.toLowerCase()
+      );
       
-      return () => clearTimeout(timer);
+      if (exactNameMatch) {
+        console.log(`✅ Found exact name match: "${exactNameMatch.name}" (ID: ${exactNameMatch.id})`);
+        setHighlightedDocId(exactNameMatch.id);
+        scrollToDocument(exactNameMatch.id);
+        return;
+      }
+
+      // 2. Try partial name match (case insensitive)
+      const partialNameMatches = documents.filter(doc => 
+        doc.name?.toLowerCase().includes(highlightName.toLowerCase())
+      );
+
+      if (partialNameMatches.length === 1) {
+        console.log(`✅ Found single partial name match: "${partialNameMatches[0].name}" (ID: ${partialNameMatches[0].id})`);
+        setHighlightedDocId(partialNameMatches[0].id);
+        scrollToDocument(partialNameMatches[0].id);
+        return;
+      } else if (partialNameMatches.length > 1) {
+        console.warn(`⚠️ Found ${partialNameMatches.length} documents with similar names:`,
+          partialNameMatches.map(d => `"${d.name}" (ID: ${d.id})`));
+        // Highlight the first match if there are multiple
+        setHighlightedDocId(partialNameMatches[0].id);
+        scrollToDocument(partialNameMatches[0].id);
+        return;
+      }
+
+      // 3. Fallback to ID matching if no name matches found
+      console.log('🔍 No name matches, trying ID-based matching...');
+      
+      // Try to find the document by exact ID match
+      const highlightedDoc = documents.find(doc => doc.id === highlightName);
+      
+      if (highlightedDoc) {
+        console.log('✅ Found exact ID match:', highlightedDoc.id);
+        setHighlightedDocId(highlightedDoc.id);
+        scrollToDocument(highlightedDoc.id);
+        return;
+      }
+
+      // If we get here, no matches were found
+      console.warn('❌ No matching document found for:', highlightName);
+      setHighlightedDocId(null);
+    } else {
+      setHighlightedDocId(null);
     }
-  }, [highlightedDocId, documents]);
+  }, [searchParams, documents]);
 
+  // Fetch documents when filters or search query changes
   useEffect(() => {
-    fetchDocuments();
-  }, [filters]);
+    fetchDocumentsList();
+  }, [filters, searchQuery]);
 
   useEffect(() => {
     logActivity("DocumentPageView", {
@@ -86,52 +181,69 @@ export default function DocumentsPage() {
     });
   }, [documents.length, filters.search, filters.sort]);
 
-  const fetchDocuments = async () => {
+  const loadDocuments = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:8000/api/documents');
-      if (!response.ok) {
-        throw new Error('Failed to fetch documents');
-      }
-      const data = await response.json();
+      const docs = await fetchDocuments();
+      console.log('Documents - Loaded documents:', {
+        count: docs.length,
+        ids: docs.map(d => d.id)
+      });
+      return docs;
 
-      let filteredDocs = data.documents || [];
-
-      if (filters.fileType !== 'all') {
-        filteredDocs = filteredDocs.filter((doc: Document) => {
-          const ext = doc.metadata?.source?.split('.').pop()?.toLowerCase();
-          return ext === filters.fileType;
-        });
-      }
-
-      setDocuments(filteredDocs);
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      console.error('Error loading documents:', error);
+      return [];
     } finally {
       setIsLoading(false);
     }
   };
 
+  const fetchDocumentsList = async () => {
+    const docs = await loadDocuments();
+    
+    // Apply filters
+    let filteredDocs = [...docs];
+    
+    // Apply search filter if search query exists
+    if (searchQuery.trim()) {
+      filteredDocs = filteredDocs.filter(doc => 
+        doc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.content?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Apply file type filter
+    if (filters.fileType !== 'all') {
+      filteredDocs = filteredDocs.filter(doc => {
+        const ext = doc.metadata?.source?.split('.').pop()?.toLowerCase() || doc.type;
+        return ext === filters.fileType;
+      });
+    }
+    
+    setDocuments(filteredDocs);
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) {
-      fetchDocuments();
-      return;
-    }
-
     try {
       setIsSearching(true);
-      const response = await fetch(
-        `http://localhost:5000/api/search?query=${encodeURIComponent(searchQuery)}&top_k=10`
-      );
-      const data = await response.json();
-      setDocuments(
-        data.results.map((result: any) => ({
-          id: result.metadata.source + '_' + (result.metadata.doc_index || '0'),
-          content: result.content,
-          metadata: result.metadata,
-        }))
-      );
+      // Update the filters with the search query
+      setFilters(prev => ({
+        ...prev,
+        search: searchQuery.trim()
+      }));
+      
+      // If search query is empty, reset to show all documents
+      if (!searchQuery.trim()) {
+        setFilters(prev => ({
+          ...prev,
+          search: ''
+        }));
+      }
+      
+      // Fetch documents with updated filters
+      await fetchDocumentsList();
     } catch (error) {
       console.error('Error searching documents:', error);
     } finally {
@@ -333,6 +445,7 @@ export default function DocumentsPage() {
           {documents.map((doc) => (
             <div 
               ref={highlightedDocId === doc.id ? highlightedDocRef : null}
+              data-doc-id={doc.id}
               className={cn(
                 "transition-all duration-300",
                 highlightedDocId === doc.id ? "scale-[1.02]" : ""
@@ -350,13 +463,13 @@ export default function DocumentsPage() {
                 {highlightedDocId === doc.id && (
                   <div className="absolute top-2 right-2 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 text-xs px-2 py-1 rounded-full flex items-center">
                     <span className="w-2 h-2 rounded-full bg-blue-500 mr-1 animate-pulse"></span>
-                    Highlighted
+                    Here i'm
                   </div>
                 )}
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg font-medium line-clamp-1">
+                      <CardTitle className="document-name text-lg font-medium line-clamp-1">
                         {doc.name || 'Untitled Document'}
                       </CardTitle>
                       <CardDescription className="text-xs">

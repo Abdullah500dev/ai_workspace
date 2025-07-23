@@ -3,22 +3,13 @@
 import { FiSearch, FiUpload, FiClock, FiMessageSquare, FiCalendar, FiMail, FiPlus, FiFileText, FiExternalLink } from 'react-icons/fi';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { fetchDocuments } from '../services/documentService';
 import ConnectApps from './ConnectApps';
 import UploadArea from './UploadArea';
 import ActivityTimeline from './ActivityTimeline';
 import GmailConnect from './GmailConnect';
 
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  size_bytes: number;
-  last_modified: string;
-  metadata: {
-    source: string;
-    [key: string]: any;
-  };
-}
+import { Document } from '../services/documentService';
 
 const Dashboard = () => {
   const [showGmailConnect, setShowGmailConnect] = useState(false);
@@ -45,11 +36,9 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchRecentDocuments = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/documents?limit=3');
-        if (response.ok) {
-          const data = await response.json();
-          setRecentDocuments(data.documents || []);
-        }
+        const docs = await fetchDocuments(3);
+        console.log('Dashboard - Fetched documents:', docs);
+        setRecentDocuments(docs);
       } catch (error) {
         console.error('Error fetching recent documents:', error);
       } finally {
@@ -217,7 +206,8 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <Link 
-                      href={`/documents?highlight=${doc.id}`}
+                      href={`/documents?highlight=${encodeURIComponent(doc.name || '')}`}
+                      onClick={() => console.log('Dashboard - Navigating to document with name:', doc.name)}
                       className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                       title="View document"
                     >
@@ -227,7 +217,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-2 mt-2">
                     <span>{lastModified}</span>
                     <Link 
-                      href={`/documents?highlight=${doc.id}`}
+                      href={`/documents?highlight=${encodeURIComponent(doc.name || '')}`}
                       className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium flex items-center"
                     >
                       View document
@@ -253,24 +243,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h3 className="font-medium text-gray-900 mb-2">Recent Meetings</h3>
-          <p className="text-3xl font-bold">12</p>
-          <p className="text-sm text-gray-500">This week</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h3 className="font-medium text-gray-900 mb-2">Synced Messages</h3>
-          <p className="text-3xl font-bold">1,245</p>
-          <p className="text-sm text-gray-500">From connected apps</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h3 className="font-medium text-gray-900 mb-2">AI Highlights</h3>
-          <p className="text-3xl font-bold">8</p>
-          <p className="text-sm text-gray-500">Key insights generated</p>
-        </div>
-      </div>
+    
     </div>
   );
 };
