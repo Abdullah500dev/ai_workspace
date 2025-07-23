@@ -277,11 +277,11 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (name: string) => {
     if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/documents/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/documents?name=${encodeURIComponent(name)}`, {
         method: 'DELETE'
       });
 
@@ -290,9 +290,9 @@ export default function DocumentsPage() {
         throw new Error(error.detail || 'Failed to delete document');
       }
 
-      setDocuments(documents.filter(doc => doc.id !== id));
+      setDocuments(documents.filter(doc => doc.name !== name));
 
-      if (viewingDoc?.id === id) {
+      if (viewingDoc?.name === name) {
         setViewingDoc(null);
       }
 
@@ -526,14 +526,32 @@ export default function DocumentsPage() {
                         : 'No content'}
                     </span>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => setViewingDoc(doc)}
-                    >
-                      View <ExternalLink className="ml-1 h-3 w-3" />
-                    </Button>
+                    <div className="flex space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(doc.name);
+                        }}
+                        title="Delete document"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingDoc(doc);
+                        }}
+                        title="View document"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -38,56 +38,79 @@ async def list_all_documents():
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=error_msg)
 
-@router.delete("/documents/{document_id}")
-async def delete_document(document_id: str):
+@router.delete("/documents")
+async def delete_document(name: str):
     """
-    Delete a document by its ID.
-    The document_id should be in the format: filename_docIndex
+    Delete all document chunks by document name.
+    The name should be the original filename of the document.
     """
-    logger.info(f"Attempting to delete document with ID: {document_id}")
+    logger.info(f"Attempting to delete document with name: {name}")
     
     try:
-        # The document_id is already in the format we use as the ChromaDB ID
-        doc_id = document_id
-        
         # Get the collection
         collection = client.get_collection("memory")
         
-        # First, list all documents for debugging
+        # First, get all documents to find the ones matching the filename
         all_docs = collection.get(include=["metadatas"])
-        logger.info(f"All document IDs in collection: {all_docs['ids']}")
         
-        # Try to get the document directly by ID first
-        try:
-            doc = collection.get(ids=[doc_id], include=["metadatas"])
-            if not doc["ids"]:
-                raise ValueError(f"Document {doc_id} not found in collection")
+        # Find all document chunks that match the filename in any of the possible fields
+        matching_indices = []
+        
+        for i, meta in enumerate(all_docs["metadatas"]):
+            if not meta:
+                continue
                 
-            # Extract filename from metadata for cleanup
-            filename = doc["metadatas"][0].get("source", "").split('/')[-1]  # Get just the filename
-            logger.info(f"Found document metadata - source: {filename}")
+            # Check all possible fields that might contain the filename
+            possible_fields = [
+                meta.get("original_filename"),
+                meta.get("source"),
+                meta.get("filename"),
+                meta.get("file_path"),
+                meta.get("title")  # For Google Docs
+            ]
             
-        except Exception as e:
-            logger.error(f"Error fetching document {doc_id}: {str(e)}")
-            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+            # Check if any of the fields match the name (either directly or as a path)
+            for field in possible_fields:
+                if not field:
+                    continue
+                    
+                # Get just the filename part if it's a path
+                field_basename = os.path.basename(str(field))
+                
+                # Check for exact match or basename match
+                if field == name or field_basename == name:
+                    matching_indices.append(i)
+                    break  # No need to check other fields for this document
         
-        # Delete the document
-        logger.info(f"Deleting document with ID: {doc_id}")
-        collection.delete(ids=[doc_id])
+        if not matching_indices:
+            raise HTTPException(status_code=404, detail=f"No documents found with name: {name}")
         
-        # Check if this was the last part of the document
-        if filename:
-            remaining_docs = collection.get(where={"source": filename}, include=["metadatas"])
-            if not remaining_docs["ids"]:
-                # Delete the file if it exists
-                file_path = os.path.join("uploads", filename)
-                if os.path.exists(file_path):
-                    logger.info(f"Removing file: {file_path}")
-                    os.remove(file_path)
+        # Get all document IDs to delete
+        doc_ids = [all_docs["ids"][i] for i in matching_indices if i < len(all_docs["ids"])]
         
-        success_msg = f"Successfully deleted document {doc_id}"
+        # Also find the source filename for the first matching document to delete the file
+        source_filename = None
+        for i in matching_indices:
+            if i < len(all_docs["metadatas"]) and all_docs["metadatas"][i]:
+                source_filename = all_docs["metadatas"][i].get("source")
+                if source_filename:
+                    break
+        
+        logger.info(f"Found {len(doc_ids)} document chunks to delete for: {name}")
+        
+        # Delete all matching documents
+        if doc_ids:
+            collection.delete(ids=doc_ids)
+        
+        # Delete the file if it exists
+        file_path = os.path.join("uploads", source_filename) if source_filename else None
+        if os.path.exists(file_path):
+            logger.info(f"Removing file: {file_path}")
+            os.remove(file_path)
+        
+        success_msg = f"Successfully deleted {len(doc_ids)} document chunks for: {name}"
         logger.info(success_msg)
-        return {"status": "success", "message": success_msg}
+        return {"status": "success", "message": success_msg, "deleted_count": len(doc_ids)}
         
     except HTTPException as he:
         logger.error(f"HTTP Exception: {he.detail}")
