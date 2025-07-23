@@ -199,18 +199,44 @@ export default function DocumentsPage() {
     }
   };
 
+  // Helper function to highlight matching text in content
+  const highlightMatchingContent = (content: string, query: string) => {
+    if (!content || !query.trim()) return content;
+    
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    
+    return content.split('\n').map((line, i) => {
+      if (line.toLowerCase().includes(query.toLowerCase())) {
+        return (
+          <div key={i} className="mb-1 p-1 bg-yellow-100 dark:bg-yellow-900/30 rounded">
+            {line.split(regex).map((part, j) => 
+              part.toLowerCase() === query.toLowerCase() 
+                ? <mark key={j} className="bg-yellow-300 dark:bg-yellow-800/50 px-1 rounded">{part}</mark> 
+                : part
+            )}
+          </div>
+        );
+      }
+      return null;
+    }).filter(Boolean);
+  };
+
   const fetchDocumentsList = async () => {
     const docs = await loadDocuments();
     
     // Apply filters
     let filteredDocs = [...docs];
+    const query = searchQuery.trim().toLowerCase();
     
     // Apply search filter if search query exists
-    if (searchQuery.trim()) {
-      filteredDocs = filteredDocs.filter(doc => 
-        doc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.content?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+    if (query) {
+      filteredDocs = filteredDocs.map(doc => ({
+        ...doc,
+        // Add a flag to indicate if this document matches the search
+        matchesSearch: doc.name?.toLowerCase().includes(query) || 
+                      doc.content?.toLowerCase().includes(query)
+      })).filter(doc => doc.matchesSearch);
     }
     
     // Apply file type filter
@@ -486,9 +512,13 @@ export default function DocumentsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {doc.content}
-                  </p>
+                  <div className="text-sm text-muted-foreground max-h-24 overflow-y-auto">
+                    {searchQuery.trim() ? (
+                      highlightMatchingContent(doc.content || '', searchQuery.trim())
+                    ) : (
+                      <p className="line-clamp-3">{doc.content}</p>
+                    )}
+                  </div>
                   <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
                     <span>
                       {doc.content
