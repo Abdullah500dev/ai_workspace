@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
@@ -8,6 +9,7 @@ import { Search, FileText, Trash2, ExternalLink, Filter, X } from 'lucide-react'
 import { cn } from '../../components/ui/cn';
 import { DocumentViewer } from '../../components/DocumentViewer';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { logActivity } from "../../utils/logActivity";
 
 type Document = {
   id: string;
@@ -22,23 +24,67 @@ type Document = {
   };
 };
 
+type DocumentFilters = {
+  fileType: string;
+  dateRange: string;
+  search?: string;
+  sort?: string;
+};
+
 export default function DocumentsPage() {
+  const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
-  const [filters, setFilters] = useState({
+  const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<DocumentFilters>({
     fileType: 'all',
     dateRange: 'all',
+    search: '',
+    sort: 'newest'
   });
   const [showFilters, setShowFilters] = useState(false);
+  const highlightedDocRef = useRef<HTMLDivElement>(null);
 
-  // Fetch all documents on initial load
-  // Fetch all documents on initial load and when filters change
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight');
+    if (highlightId) {
+      setHighlightedDocId(highlightId);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (highlightedDocId && highlightedDocRef.current) {
+      highlightedDocRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+      
+      const timer = setTimeout(() => {
+        setHighlightedDocId(null);
+        const url = new URL(window.location.href);
+        url.searchParams.delete('highlight');
+        window.history.replaceState({}, '', url.toString());
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedDocId, documents]);
+
   useEffect(() => {
     fetchDocuments();
   }, [filters]);
+
+  useEffect(() => {
+    logActivity("DocumentPageView", {
+      component: "DocumentsPage",
+      documentCount: documents.length,
+      filter: filters.search ? 'search' : 'all',
+      sortOrder: filters.sort
+    });
+  }, [documents.length, filters.search, filters.sort]);
 
   const fetchDocuments = async () => {
     try {
@@ -49,7 +95,6 @@ export default function DocumentsPage() {
       }
       const data = await response.json();
 
-      // Apply client-side filtering
       let filteredDocs = data.documents || [];
 
       if (filters.fileType !== 'all') {
@@ -58,9 +103,6 @@ export default function DocumentsPage() {
           return ext === filters.fileType;
         });
       }
-
-      // Note: Date filtering would require the backend to include upload dates
-      // This is a placeholder for future implementation
 
       setDocuments(filteredDocs);
     } catch (error) {
@@ -110,10 +152,8 @@ export default function DocumentsPage() {
         throw new Error(error.detail || 'Failed to delete document');
       }
 
-      // Remove the deleted document from the UI
       setDocuments(documents.filter(doc => doc.id !== id));
 
-      // Close the viewer if the deleted document is currently being viewed
       if (viewingDoc?.id === id) {
         setViewingDoc(null);
       }
@@ -291,60 +331,70 @@ export default function DocumentsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {documents.map((doc) => (
-            <Card key={doc.id} className={cn("hover:shadow-md transition-shadow")}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg font-medium line-clamp-1">
-                      {doc.name || 'Untitled Document'}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {(() => {
-                        if (!doc.id || typeof doc.id !== 'string') return '';
-                        const parts = doc.id.split('_');
-                        const last = parts[parts.length - 1];
-                        const isPart = parts.length > 1 && !isNaN(Number(last)) && last !== '0';
-                        return isPart ? `Part ${Number(last) + 1}` : '';
-                      })()}
-                    </CardDescription>
-
+            <div 
+              ref={highlightedDocId === doc.id ? highlightedDocRef : null}
+              className={cn(
+                "transition-all duration-300",
+                highlightedDocId === doc.id ? "scale-[1.02]" : ""
+              )}
+            >
+              <Card 
+                key={doc.id} 
+                className={cn(
+                  "hover:shadow-md transition-all cursor-pointer h-full flex flex-col relative overflow-hidden",
+                  viewingDoc?.id === doc.id && "ring-2 ring-blue-500",
+                  highlightedDocId === doc.id ? "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20" : ""
+                )}
+                onClick={() => setViewingDoc(doc)}
+              >
+                {highlightedDocId === doc.id && (
+                  <div className="absolute top-2 right-2 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 text-xs px-2 py-1 rounded-full flex items-center">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 mr-1 animate-pulse"></span>
+                    Highlighted
                   </div>
-                  {/* <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:bg-destructive/10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(doc.id);
-                    }}
-                    title="Delete document"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button> */}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {doc.content}
-                </p>
-                <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
-                  <span>
-                    {doc.content
-                      ? `${Math.ceil(doc.content.length / 5)} words • ${doc.content.length} chars`
-                      : 'No content'}
-                  </span>
+                )}
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg font-medium line-clamp-1">
+                        {doc.name || 'Untitled Document'}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {(() => {
+                          if (!doc.id || typeof doc.id !== 'string') return '';
+                          const parts = doc.id.split('_');
+                          const last = parts[parts.length - 1];
+                          const isPart = parts.length > 1 && !isNaN(Number(last)) && last !== '0';
+                          return isPart ? `Part ${Number(last) + 1}` : '';
+                        })()}
+                      </CardDescription>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => setViewingDoc(doc)}
-                  >
-                    View <ExternalLink className="ml-1 h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {doc.content}
+                  </p>
+                  <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground">
+                    <span>
+                      {doc.content
+                        ? `${Math.ceil(doc.content.length / 5)} words • ${doc.content.length} chars`
+                        : 'No content'}
+                    </span>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => setViewingDoc(doc)}
+                    >
+                      View <ExternalLink className="ml-1 h-3 w-3" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
       )}

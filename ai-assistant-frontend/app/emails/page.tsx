@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
+import { logActivity } from "../../utils/logActivity";
 
 interface Email {
   id: string;
@@ -280,8 +281,11 @@ const parseEmailContent = (email: any): Email => {
   return result as Email;
 };
 
+type EmailFolder = 'inbox' | 'sent' | 'drafts' | 'trash' | 'spam';
+
 export default function EmailInbox() {
   const [emails, setEmails] = useState<Email[]>([]);
+  const [currentFolder, setCurrentFolder] = useState<EmailFolder>('inbox');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('30'); // days
@@ -304,9 +308,10 @@ export default function EmailInbox() {
       
       // Build query parameters
       const params = new URLSearchParams({
-        query: filters.search || 'all',
+        query: filters.search || '', // Empty string returns all emails
         days: dateFilter,
         limit: '100',
+        sort: 'newest', // Ensure backend sorts by newest first
         ...(filters.unread && { unread: 'true' }),
         ...(filters.from && { from_email: filters.from }),
         ...(filters.to && { to: filters.to })
@@ -372,8 +377,12 @@ export default function EmailInbox() {
     }
   };
 
-  // Search is now handled by the backend
-  const filteredEmails = emails;
+  // Sort emails by timestamp (newest first) and filter out duplicates
+  const filteredEmails = Array.from(new Map(
+    emails
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)) // Sort by newest first
+      .map(email => [email.id, email]) // Use email ID as key to deduplicate
+  ).values());
 
   const handleEmailClick = (email: Email) => {
     setSelectedEmail(email);
@@ -386,6 +395,18 @@ export default function EmailInbox() {
   const handleRefresh = () => {
     fetchEmails();
   };
+
+  // Log activity when emails or folder changes
+  useEffect(() => {
+    if (!loading) { // Only log when we have data
+      logActivity("EmailInboxView", {
+        component: "EmailsPage",
+        emailCount: emails.length,
+        unreadCount: emails.filter(e => !e.read).length,
+        currentFolder: currentFolder
+      });
+    }
+  }, [emails.length, currentFolder, loading]);
 
   if (loading) {
     return (
@@ -501,25 +522,31 @@ export default function EmailInbox() {
             ) : (
               <div className="space-y-2 text-black">
                 {filteredEmails.map((email) => {
-                  // Clean up sender and recipient information
+                  // Extract and clean email data
                   const cleanFrom = (email.from || '').replace(/<[^>]*>/g, '').trim();
                   const cleanTo = (email.to || '').replace(/<[^>]*>/g, '').trim();
-                  const displayFrom = cleanFrom || 'Unknown Sender';
-                  const displayTo = cleanTo || 'Unknown Recipient';
                   
-                  // Format date
+                  // Format date with fallback to timestamp if date is invalid
                   let displayDate = 'Unknown date';
                   try {
-                    displayDate = format(new Date(email.date), 'MMM d, yyyy h:mm a');
+                    const dateToFormat = email.date || new Date(email.timestamp).toISOString();
+                    displayDate = format(new Date(dateToFormat), 'MMM d, yyyy h:mm a');
                   } catch (e) {
-                    console.warn('Invalid date:', email.date);
+                    console.warn('Invalid date:', email.date, 'Timestamp:', email.timestamp);
                   }
                   
-                  // Get preview text
+                  // Get preview text with better fallbacks
                   const previewText = email.preview || 
                     (email.content ? 
-                      (email.content.split('\n').find(line => line.trim().length > 10) || 'No content') : 
+                      (email.content.split('\n')
+                        .map(line => line.trim())
+                        .find(line => line.length > 10) || 
+                        email.content.substring(0, 100) + '...') : 
                       'No content');
+                      
+                  // Determine sender/recipient display
+                  const displayFrom = cleanFrom || 'Unknown Sender';
+                  const displayTo = cleanTo || 'Unknown Recipient';
                   
                   return (
                     <Card 

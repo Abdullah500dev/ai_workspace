@@ -9,10 +9,14 @@ from routes.debug_chroma import router as debug_chroma_router
 from routes import google_docs
 from routes.slack import router as slack_router
 from routes.chat import init_chat_routes
+from routes.activity import router as activity_router
 from mongodb import client as mongodb_client, test_connection
 import asyncio
 import os
 from dotenv import load_dotenv
+from typing import List
+from pydantic import BaseModel
+from datetime import datetime
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -42,9 +46,30 @@ app.include_router(email_search_router, prefix="/api")  # Handles /api/search/em
 app.include_router(debug_chroma_router, prefix="/api")  # Handles /api/debug/chroma/*
 app.include_router(google_docs.router, prefix="")  # Handles /api/google-docs/import and /api/google-docs/list
 app.include_router(slack_router, prefix="/api")  # Handles /api/slack/*
+app.include_router(activity_router, prefix="")  # Handles /api/activity
 
 # Initialize chat routes with MongoDB
 init_chat_routes(app, mongodb_client.get_database())
+
+
+activity_log: List[dict] = []
+
+class Activity(BaseModel):
+    page: str  # e.g., "Document", "Email", "Chat"
+
+@app.post("/api/activity")
+def log_activity(activity: Activity):
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "page": activity.page
+    }
+    activity_log.append(entry)
+    return {"message": "Activity logged", "activity": entry}
+
+@app.get("/api/activity")
+def get_activities():
+    return activity_log
+
 
 # Test MongoDB connection on startup
 @app.on_event("startup")

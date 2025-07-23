@@ -153,12 +153,12 @@ export default function Chat() {
   }, [sessionId, messages.length]);
   
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 max-w-4xl mx-auto my-8">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 max-w-7xl mx-auto my-8">
       <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
         <FiMessageSquare className="mr-2 text-blue-600" />
         AI Assistant Chat
       </h2>
-      <div className="flex flex-col h-96 overflow-y-auto border rounded-lg p-4 mb-4 bg-gray-50 dark:bg-gray-700 gap-4">
+      <div className="flex flex-col h-[75vh] overflow-y-auto border rounded-lg p-4 mb-4 bg-gray-50 dark:bg-gray-700 gap-4">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             No messages yet. Start a conversation!

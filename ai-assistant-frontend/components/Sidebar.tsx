@@ -9,9 +9,12 @@ import { useContext } from 'react';
 import dynamic from 'next/dynamic';
 
 // Dynamically import the SlackIntegration component to avoid SSR issues
-const SlackIntegration = dynamic(
-  () => import('./SlackIntegration'),
-  { ssr: false }
+const SlackIntegration = dynamic<{}>(
+  () => import('./SlackIntegration').then(mod => mod.default),
+  { 
+    ssr: false, 
+    loading: () => <div className="text-sm text-gray-500 dark:text-gray-400">Loading Slack integration...</div>
+  }
 );
 
 const Sidebar = () => {
@@ -25,7 +28,7 @@ const Sidebar = () => {
       isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200'
     }`}>
       <h1
-      onClick={() => router.push('/')}
+      onClick={() => router.push('/dashboard')}
       className={`text-2xl font-bold mb-8 px-2 cursor-pointer ${
         isDark ? 'text-white' : 'text-gray-900'
       }`}
@@ -58,14 +61,14 @@ const Sidebar = () => {
         </ul>
         
         {/* Slack Integration */}
-        <div className="mt-8 pt-4 border-t border-gray-700">
+        {/* <div className="mt-8 pt-4 border-t border-gray-700">
           <div className="px-2 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Integrations
           </div>
           <div className="px-2">
             <SlackIntegration />
           </div>
-        </div>
+        </div> */}
       </nav>
     </div>
   );

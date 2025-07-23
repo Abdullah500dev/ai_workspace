@@ -130,10 +130,10 @@ export default function ConnectApps() {
             className={`flex items-center p-4 border rounded-lg ${!app.isConnected ? 'hover:bg-gray-800 cursor-pointer' : ''} ${app.isConnecting ? 'opacity-70' : ''}`} 
             onClick={!app.isConnected ? app.onClick : undefined}
           >
-            <div className={`p-3 rounded-full mr-4 ${app.isConnected ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+            <div className={`p-2 rounded-full ${app.isConnected ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
               {app.isConnected ? <FaCheck /> : app.icon}
             </div>
-            <div>
+            {/* <div>
               <div className="flex items-center">
                 <h3 className="font-medium">{app.name}</h3>
                 {app.isConnected && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Connected</span>}
@@ -142,7 +142,7 @@ export default function ConnectApps() {
               <p className="text-sm text-gray-500">
                 {app.isConnected ? 'Connected successfully' : 'Click to connect'}
               </p>
-            </div>
+            </div> */}
           </div>
         ))}
       </div>
