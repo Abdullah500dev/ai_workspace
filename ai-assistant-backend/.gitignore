@@ -71,3 +71,13 @@ credentials.json
 
 # uploaded_docs directory
 uploaded_docs/
+
+processed_emails.txt
+processed_emails.json
+
+token.pickle
+
+processed_emails.txt
+processed_emails.json
+
+token_gmail.pickle

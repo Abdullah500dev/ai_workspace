@@ -1,15 +1,25 @@
-import { FiSearch, FiUpload, FiClock, FiMessageSquare, FiCalendar, FiMail } from 'react-icons/fi';
+
+"use client";
+import { FiSearch, FiUpload, FiClock, FiMessageSquare, FiCalendar, FiMail, FiPlus } from 'react-icons/fi';
+import { useState } from 'react';
 import ConnectApps from './ConnectApps';
 import UploadArea from './UploadArea';
 import ActivityTimeline from './ActivityTimeline';
+import GmailConnect from './GmailConnect';
 
 const Dashboard = () => {
-  const connectedApps = [
+  const [showGmailConnect, setShowGmailConnect] = useState(false);
+  const [connectedApps, setConnectedApps] = useState([
     { name: 'Slack', icon: <FiMessageSquare className="text-purple-600" />, connected: true },
-    { name: 'Gmail', icon: <FiMail className="text-red-500" />, connected: true },
+    { 
+      name: 'Gmail', 
+      icon: <FiMail className="text-red-500" />, 
+      connected: true,
+      onConnect: () => setShowGmailConnect(true)
+    },
     { name: 'Google Calendar', icon: <FiCalendar className="text-blue-500" />, connected: false },
     { name: 'ClickUp', icon: <FiClock className="text-green-500" />, connected: false },
-  ];
+  ]);
 
   const recentActivity = [
     { id: 1, type: 'meeting', title: 'Team Sync', date: '2025-07-20', participants: 5 },
@@ -21,7 +31,7 @@ const Dashboard = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Team Workspace</h1>
+        <h1 className="text-2xl font-bold text-white">Team Workspace</h1>
         <div className="flex space-x-4">
           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
             <FiUpload className="inline mr-2" />
@@ -47,31 +57,70 @@ const Dashboard = () => {
 
       {/* Connected Apps */}
       <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Connected Apps</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {connectedApps.map((app) => (
-            <div key={app.name} className={`p-4 border rounded-lg ${app.connected ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">{app.icon}</span>
-                <div>
-                  <p className="font-medium">{app.name}</p>
-                  <p className="text-sm text-gray-500">{app.connected ? 'Connected' : 'Not Connected'}</p>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-medium text-white">Connected Apps</h2>
+          <button 
+            className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+            onClick={() => setShowGmailConnect(true)}
+          >
+            <FiPlus className="h-4 w-4 mr-1" />
+            Add Account
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {connectedApps.map((app, index) => (
+            <div 
+              key={index} 
+              className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              onClick={app.onConnect}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    {app.icon}
+                  </div>
+                  <span className="font-medium text-black">{app.name}</span>
                 </div>
+                <span className={`px-2 py-1 text-xs rounded-full ${app.connected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {app.connected ? 'Connected' : 'Not Connected'}
+                </span>
               </div>
+              {!app.connected && (
+                <button 
+                  className="mt-3 w-full text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    app.onConnect?.();
+                  }}
+                >
+                  Connect
+                </button>
+              )}
             </div>
           ))}
         </div>
       </div>
 
+      {/* Gmail Connect Modal */}
+      {showGmailConnect && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <GmailConnect onClose={() => setShowGmailConnect(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Upload */}
       <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Upload</h2>
+        <h2 className="text-lg font-medium text-white mb-4">Quick Upload</h2>
         <UploadArea />
       </div>
 
       {/* Activity Timeline */}
       <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h2>
+        <h2 className="text-lg font-medium text-white mb-4">Recent Activity</h2>
         <ActivityTimeline />
       </div>
 
